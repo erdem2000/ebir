@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "dgSpecHash": "N639Vyru6NI=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\bouncycastle.cryptography\\2.3.1\\bouncycastle.cryptography.2.3.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\closedxml\\0.104.2\\closedxml.0.104.2.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\closedxml.parser\\1.2.0\\closedxml.parser.1.2.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\documentformat.openxml\\3.1.1\\documentformat.openxml.3.1.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\documentformat.openxml.framework\\3.1.1\\documentformat.openxml.framework.3.1.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\enums.net\\4.0.1\\enums.net.4.0.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\excelnumberformat\\1.1.0\\excelnumberformat.1.1.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\extendednumerics.bigdecimal\\2025.1001.2.129\\extendednumerics.bigdecimal.2025.1001.2.129.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\mathnet.numerics.signed\\5.0.0\\mathnet.numerics.signed.5.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\microsoft.io.recyclablememorystream\\3.0.0\\microsoft.io.recyclablememorystream.3.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\microsoft.netcore.platforms\\5.0.0\\microsoft.netcore.platforms.5.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\npoi\\2.7.2\\npoi.2.7.2.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\rbush\\4.0.0\\rbush.4.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\sharpziplib\\1.4.2\\sharpziplib.1.4.2.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\sixlabors.fonts\\1.0.1\\sixlabors.fonts.1.0.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\sixlabors.imagesharp\\2.1.9\\sixlabors.imagesharp.2.1.9.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\system.io.packaging\\8.0.1\\system.io.packaging.8.0.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\system.runtime.compilerservices.unsafe\\5.0.0\\system.runtime.compilerservices.unsafe.5.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\system.security.cryptography.pkcs\\8.0.1\\system.security.cryptography.pkcs.8.0.1.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\system.security.cryptography.xml\\8.0.2\\system.security.cryptography.xml.8.0.2.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\system.text.encoding.codepages\\5.0.0\\system.text.encoding.codepages.5.0.0.nupkg.sha512",
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget\\microsoft.windowsdesktop.app.ref\\8.0.12\\microsoft.windowsdesktop.app.ref.8.0.12.nupkg.sha512"
+  ],
+  "logs": []
+}

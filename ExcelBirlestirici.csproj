@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationTitle>THB Excel Birleştirici</ApplicationTitle>
+    <AssemblyTitle>THB Excel Birleştirici</AssemblyTitle>
+    <Product>THB Excel Birleştirici</Product>
+    <RootNamespace>ExcelBirlestirici</RootNamespace>
+    <AssemblyName>ExcelBirlestirici</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <PackageReference Include="NPOI" Version="2.7.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="ExcelBirlestirici.Tests\**\*" />
+    <EmbeddedResource Remove="ExcelBirlestirici.Tests\**\*" />
+    <None Remove="ExcelBirlestirici.Tests\**\*" />
+  </ItemGroup>
+</Project>
