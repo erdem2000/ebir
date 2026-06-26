@@ -12,8 +12,8 @@ public class MergeIntegrationTests
 
         try
         {
-            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş"], [("Ali", 30), ("Ayşe", 25)]);
-            WriteWorkbook(Path.Combine(root, "b.xlsx"), ["Yaş", "Şehir"], [(40, "Ankara"), (22, "İzmir")]);
+            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş", "Şehir"], [("Ali", 30, ""), ("Ayşe", 25, "")]);
+            WriteWorkbook(Path.Combine(root, "b.xlsx"), ["Yaş", "Şehir", "Ad"], [(40, "Ankara", "Mehmet"), (22, "İzmir", "Can")]);
 
             var result = ExcelMergeService.Merge(root);
 
@@ -55,8 +55,8 @@ public class MergeIntegrationTests
 
         try
         {
-            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş"], [("Ali", 30)]);
-            WriteCsv(Path.Combine(root, "c.csv"), "Şehir,Yaş\nAnkara,40\nİzmir,22\n");
+            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş", "Şehir"], [("Ali", 30, "")]);
+            WriteCsv(Path.Combine(root, "c.csv"), "Şehir,Yaş,Ad\nAnkara,40,Zeynep\nİzmir,22,Deniz\n");
 
             var result = ExcelMergeService.Merge(root);
 
@@ -99,7 +99,7 @@ public class MergeIntegrationTests
                 ["PhoneNr", "Ad"],
                 [("5551112233", "Ali"), ("5551112233", "Veli")]);
 
-            WriteCsv(Path.Combine(root, "b.csv"), "Ad,PhoneNr\nAyşe,5551112233\nFatma,5552223344\n");
+            WriteCsv(Path.Combine(root, "b.csv"), "PhoneNr,Ad\n5551112233,Ayşe\n5552223344,Fatma\n");
 
             var result = ExcelMergeService.Merge(root);
             Assert.NotNull(result.OutputPath);
@@ -160,6 +160,90 @@ public class MergeIntegrationTests
         }
     }
 
+    [Fact]
+    public void Merge_MergesFirstNSheets_WhenHeadersMatch()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciMultiSheetTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "book.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
+                ("Sayfa2", ["Ad", "Yaş"], [("Veli", 40)]));
+
+            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2 });
+
+            Assert.NotNull(result.OutputPath);
+            Assert.Equal(2, result.RowsWritten);
+            Assert.Contains("book.xlsx / Sayfa1", result.MergedFiles);
+            Assert.Contains("book.xlsx / Sayfa2", result.MergedFiles);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    [Fact]
+    public void Merge_Aborts_WhenSheetHeadersDiffer()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciHeaderMismatchTests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "book.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
+                ("Sayfa2", ["Ad", "Şehir"], [("Veli", "Ankara")]));
+
+            var validation = ExcelMergeService.ValidateSheetHeaders(root, new MergeOptions { SheetsToMerge = 2 });
+            Assert.False(validation.IsValid);
+            Assert.NotEmpty(validation.Errors);
+
+            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2 });
+            Assert.Null(result.OutputPath);
+            Assert.True(result.AbortedDueToHeaderMismatch);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    private static void WriteWorkbook(string path, string[] headers, (object c1, object c2, object c3)[] rows)
+    {
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("Sayfa1");
+        for (var c = 0; c < headers.Length; c++)
+            ws.Cell(1, c + 1).Value = headers[c];
+
+        for (var r = 0; r < rows.Length; r++)
+        {
+            SetCellValue(ws.Cell(r + 2, 1), rows[r].c1);
+            SetCellValue(ws.Cell(r + 2, 2), rows[r].c2);
+            SetCellValue(ws.Cell(r + 2, 3), rows[r].c3);
+        }
+
+        wb.SaveAs(path);
+    }
+
     private static void WriteWorkbook(string path, string[] headers, (object c1, object c2)[] rows)
     {
         using var wb = new XLWorkbook();
@@ -171,6 +255,27 @@ public class MergeIntegrationTests
         {
             SetCellValue(ws.Cell(r + 2, 1), rows[r].c1);
             SetCellValue(ws.Cell(r + 2, 2), rows[r].c2);
+        }
+
+        wb.SaveAs(path);
+    }
+
+    private static void WriteWorkbookWithSheets(
+        string path,
+        params (string SheetName, string[] Headers, (object c1, object c2)[] Rows)[] sheets)
+    {
+        using var wb = new XLWorkbook();
+        foreach (var sheet in sheets)
+        {
+            var ws = wb.AddWorksheet(sheet.SheetName);
+            for (var c = 0; c < sheet.Headers.Length; c++)
+                ws.Cell(1, c + 1).Value = sheet.Headers[c];
+
+            for (var r = 0; r < sheet.Rows.Length; r++)
+            {
+                SetCellValue(ws.Cell(r + 2, 1), sheet.Rows[r].c1);
+                SetCellValue(ws.Cell(r + 2, 2), sheet.Rows[r].c2);
+            }
         }
 
         wb.SaveAs(path);

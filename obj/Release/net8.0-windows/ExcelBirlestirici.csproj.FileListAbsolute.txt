@@ -60,3 +60,4 @@ C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\obj\Release\net8.0-windows\ref
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\obj\Release\net8.0-windows\ExcelBirlestirici.pdb
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\obj\Release\net8.0-windows\ExcelBirlestirici.genruntimeconfig.cache
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\obj\Release\net8.0-windows\ref\ExcelBirlestirici.dll
+c:\Users\erdem\Desktop\Projects\ExcelBirlestirici\obj\Release\net8.0-windows\ExcelBirlestirici.sourcelink.json

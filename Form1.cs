@@ -34,16 +34,40 @@ public partial class Form1 : Form
         btnMerge.Enabled = false;
         btnBrowse.Enabled = false;
         chkSkipInvalidRows.Enabled = false;
-        lblStatus.Text = "Birleştiriliyor…";
-        Application.DoEvents();
+        numSheetCount.Enabled = false;
 
         try
         {
             var options = new MergeOptions
             {
                 SkipInvalidRows = chkSkipInvalidRows.Checked,
+                SheetsToMerge = (int)numSheetCount.Value,
                 RequestPassword = PromptForExcelPassword
             };
+
+            lblStatus.Text = "Sütun başlıkları kontrol ediliyor…";
+            Application.DoEvents();
+
+            var headerValidation = ExcelMergeService.ValidateSheetHeaders(path, options);
+            if (!headerValidation.IsValid)
+            {
+                var validationMessage = string.Join(
+                    Environment.NewLine + Environment.NewLine,
+                    headerValidation.Errors);
+
+                lblStatus.Text = "Sütun başlıkları uyuşmuyor. Birleştirme başlatılmadı.";
+                ShowScrollablePopup(
+                    "Tüm sayfalardaki sütun başlıkları aynı olmalıdır. Birleştirme başlatılmadı." +
+                    Environment.NewLine + Environment.NewLine +
+                    validationMessage,
+                    Text,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            lblStatus.Text = "Birleştiriliyor…";
+            Application.DoEvents();
+
             var result = ExcelMergeService.Merge(path, options);
             var sb = new StringBuilder();
             var details = new StringBuilder();
@@ -61,6 +85,10 @@ public partial class Form1 : Form
                 sb.AppendLine("İşlem hatalı satır nedeniyle durduruldu.");
                 sb.AppendLine($"Düzeltilen satır: {result.FixedRows.Count}.");
                 sb.AppendLine($"Hatalı satır (atlanan): {result.SkippedRows.Count}.");
+            }
+            else if (result.AbortedDueToHeaderMismatch)
+            {
+                sb.AppendLine("Sütun başlıkları uyuşmadığı için birleştirme başlatılmadı.");
             }
 
             details.AppendLine("Bulunan dosyalar:");
@@ -118,7 +146,7 @@ public partial class Form1 : Form
 
                 ShowScrollablePopup(popupText.ToString().Trim(), Text, MessageBoxIcon.Information);
             }
-            else if (result.AbortedDueToInvalidRow || result.FileErrors.Count > 0)
+            else if (result.AbortedDueToInvalidRow || result.AbortedDueToHeaderMismatch || result.FileErrors.Count > 0)
             {
                 var popupText = new StringBuilder();
                 popupText.AppendLine(lblStatus.Text);
@@ -138,6 +166,7 @@ public partial class Form1 : Form
             btnMerge.Enabled = true;
             btnBrowse.Enabled = true;
             chkSkipInvalidRows.Enabled = true;
+            numSheetCount.Enabled = true;
         }
     }
 

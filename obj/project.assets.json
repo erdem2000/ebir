@@ -912,17 +912,17 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget": {},
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\c17465d0cb3e92977abdd0481f3971b0\\nuget": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj",
+      "projectUniqueName": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj",
       "projectName": "ExcelBirlestirici",
-      "projectPath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj",
-      "packagesPath": "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget",
-      "outputPath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\obj\\",
+      "projectPath": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj",
+      "packagesPath": "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\c17465d0cb3e92977abdd0481f3971b0\\nuget",
+      "outputPath": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

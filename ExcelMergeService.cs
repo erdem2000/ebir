@@ -7,11 +7,20 @@ public sealed class MergeOptions
 {
     public bool SkipInvalidRows { get; init; }
 
+    /// <summary>Her Excel dosyasında birleştirilecek ilk sayfa sayısı.</summary>
+    public int SheetsToMerge { get; init; } = 1;
+
     /// <summary>
     /// Şifre korumalı Excel dosyası için şifre ister.
     /// Parametreler: dosya adı, önceki şifre yanlış mı. null dönerse dosya atlanır.
     /// </summary>
     public Func<string, bool, string?>? RequestPassword { get; init; }
+}
+
+public sealed class SheetHeaderValidationResult
+{
+    public bool IsValid { get; init; }
+    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
 }
 
 public enum RowIssueAction
@@ -57,6 +66,7 @@ public sealed class MergeResult
     public IReadOnlyList<RowIssue> FixedRows { get; init; } = Array.Empty<RowIssue>();
     public IReadOnlyList<RowIssue> SkippedRows { get; init; } = Array.Empty<RowIssue>();
     public bool AbortedDueToInvalidRow { get; init; }
+    public bool AbortedDueToHeaderMismatch { get; init; }
 }
 
 public static class ExcelMergeService
@@ -66,6 +76,34 @@ public static class ExcelMergeService
     private const string PhoneNrColumn = "PhoneNr";
     private const int MaxExcelRows = 1_048_576;
     private const int MaxDataRows = MaxExcelRows - 1;
+
+    public static SheetHeaderValidationResult ValidateSheetHeaders(string folderPath, MergeOptions? options = null)
+    {
+        options ??= new MergeOptions();
+
+        if (string.IsNullOrWhiteSpace(folderPath))
+            throw new ArgumentException("Klasör yolu boş olamaz.", nameof(folderPath));
+
+        var dir = new DirectoryInfo(folderPath);
+        if (!dir.Exists)
+            throw new DirectoryNotFoundException($"Klasör bulunamadı: {folderPath}");
+
+        var files = EnumerateInputFiles(dir.FullName)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            return new SheetHeaderValidationResult
+            {
+                IsValid = false,
+                Errors = ["Uygun dosya bulunamadı (.xlsx / .xlsm / .csv)."]
+            };
+        }
+
+        var passwordSession = new ExcelPasswordSession(options.RequestPassword);
+        return ValidateSheetHeaders(files, options, passwordSession);
+    }
 
     public static MergeResult Merge(string folderPath, MergeOptions? options = null)
     {
@@ -92,6 +130,18 @@ public static class ExcelMergeService
                 FileErrors = ["Uygun dosya bulunamadı (.xlsx / .xlsm / .csv)."]
             };
 
+        var passwordSession = new ExcelPasswordSession(options.RequestPassword);
+        var headerValidation = ValidateSheetHeaders(files, options, passwordSession);
+        if (!headerValidation.IsValid)
+        {
+            return new MergeResult
+            {
+                DiscoveredFiles = discoveredFileNames,
+                FileErrors = headerValidation.Errors.ToList(),
+                AbortedDueToHeaderMismatch = true
+            };
+        }
+
         var columnOrder = new List<string>();
         var fileErrors = new List<string>();
         var mergedFiles = new List<string>();
@@ -103,7 +153,6 @@ public static class ExcelMergeService
 
         var reachedRowLimit = false;
         var abortedDueToInvalidRow = false;
-        var passwordSession = new ExcelPasswordSession(options.RequestPassword);
 
         try
         {
@@ -145,83 +194,35 @@ public static class ExcelMergeService
 
                     using (wb)
                     {
-                        var ws = wb.Worksheets.FirstOrDefault();
-                        if (ws is null)
+                        var worksheets = wb.Worksheets.Take(Math.Max(1, options.SheetsToMerge)).ToList();
+                        if (worksheets.Count == 0)
                         {
                             fileErrors.Add($"{fileName}: çalışma sayfası yok.");
                             continue;
                         }
 
-                        var range = ws.RangeUsed();
-                        if (range is null)
+                        foreach (var ws in worksheets)
                         {
-                            fileErrors.Add($"{fileName}: kullanılan hücre yok, atlandı.");
-                            continue;
-                        }
+                            var sourceName = $"{fileName} / {ws.Name}";
+                            var processed = ProcessExcelWorksheet(
+                                ws,
+                                sourceName,
+                                options,
+                                columnOrder,
+                                allRows,
+                                fixedRows,
+                                skippedRows,
+                                seenPhoneNumbers,
+                                ref duplicatesSkipped,
+                                ref reachedRowLimit,
+                                fileErrors);
 
-                        var headerRangeRow = range.FirstRow();
-                        var headers = BuildUniqueHeaders(headerRangeRow, range.LastColumnUsed().ColumnNumber());
+                            if (processed)
+                                mergedFiles.Add(sourceName);
 
-                        foreach (var col in headers.Keys.OrderBy(c => c))
-                        {
-                            var h = headers[col];
-                            if (!columnOrder.Contains(h, StringComparer.OrdinalIgnoreCase))
-                                columnOrder.Add(h);
-                        }
-
-                        var firstDataRow = headerRangeRow.RowNumber() + 1;
-                        var lastRow = range.LastRowUsed().RowNumber();
-
-                        for (var r = firstDataRow; r <= lastRow; r++)
-                        {
-                            if (allRows.Count >= MaxDataRows)
-                            {
-                                reachedRowLimit = true;
-                                fileErrors.Add($"Satır limiti aşıldı ({MaxDataRows:N0}). Kalan satırlar atlandı.");
+                            if (reachedRowLimit)
                                 break;
-                            }
-
-                            var row = ws.Row(r);
-                            if (IsRowEmpty(row, headers.Keys))
-                                continue;
-
-                            var readResult = TryReadExcelRow(fileName, r, headers, row, options);
-                            switch (readResult.Outcome)
-                            {
-                                case RowReadOutcome.Success:
-                                    if (ShouldSkipDuplicateByPhoneNr(readResult.Row!, seenPhoneNumbers))
-                                    {
-                                        duplicatesSkipped++;
-                                        continue;
-                                    }
-
-                                    allRows.Add(readResult.Row!);
-                                    break;
-
-                                case RowReadOutcome.Fixed:
-                                    if (readResult.Issue is not null)
-                                        fixedRows.Add(readResult.Issue);
-
-                                    if (ShouldSkipDuplicateByPhoneNr(readResult.Row!, seenPhoneNumbers))
-                                    {
-                                        duplicatesSkipped++;
-                                        continue;
-                                    }
-
-                                    allRows.Add(readResult.Row!);
-                                    break;
-
-                                case RowReadOutcome.Skipped:
-                                    if (readResult.Issue is not null)
-                                        skippedRows.Add(readResult.Issue);
-                                    break;
-
-                                case RowReadOutcome.Failed:
-                                    throw new MergeRowException(readResult.Issue!);
-                            }
                         }
-
-                        mergedFiles.Add(fileName);
                     }
                 }
 
@@ -732,6 +733,258 @@ public static class ExcelMergeService
             }
         }
     }
+
+    private static SheetHeaderValidationResult ValidateSheetHeaders(
+        IReadOnlyList<string> files,
+        MergeOptions options,
+        ExcelPasswordSession passwordSession)
+    {
+        var errors = new List<string>();
+        var sources = CollectSheetHeaderSources(files, options, passwordSession, errors);
+
+        if (sources.Count == 0)
+        {
+            if (errors.Count == 0)
+                errors.Add("Hiçbir sayfadan sütun başlığı okunamadı.");
+
+            return new SheetHeaderValidationResult { IsValid = false, Errors = errors };
+        }
+
+        var referenceSource = sources[0].Source;
+        var referenceHeaders = sources[0].Headers;
+
+        for (var i = 1; i < sources.Count; i++)
+        {
+            var (source, headers) = sources[i];
+            if (HeadersEqual(referenceHeaders, headers))
+                continue;
+
+            errors.Add(
+                $"{source}: Sütunlar '{referenceSource}' ile uyuşmuyor.{Environment.NewLine}" +
+                $"  Beklenen: {FormatHeaders(referenceHeaders)}{Environment.NewLine}" +
+                $"  Bulunan: {FormatHeaders(headers)}");
+        }
+
+        return new SheetHeaderValidationResult
+        {
+            IsValid = errors.Count == 0,
+            Errors = errors
+        };
+    }
+
+    private static List<(string Source, IReadOnlyList<string> Headers)> CollectSheetHeaderSources(
+        IReadOnlyList<string> files,
+        MergeOptions options,
+        ExcelPasswordSession passwordSession,
+        List<string> errors)
+    {
+        var sources = new List<(string Source, IReadOnlyList<string> Headers)>();
+        var sheetsToMerge = Math.Max(1, options.SheetsToMerge);
+
+        foreach (var path in files)
+        {
+            var fileName = Path.GetFileName(path) ?? path;
+            var ext = Path.GetExtension(path);
+
+            if (ext.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryGetCsvHeaderNames(path, out var csvHeaders, out var csvError))
+                    sources.Add((fileName, csvHeaders!));
+                else
+                    errors.Add($"{fileName}: {csvError}");
+                continue;
+            }
+
+            XLWorkbook wb;
+            try
+            {
+                wb = passwordSession.Open(path, fileName);
+            }
+            catch (ExcelPasswordCancelledException ex)
+            {
+                errors.Add(ex.Message);
+                continue;
+            }
+
+            using (wb)
+            {
+                var worksheets = wb.Worksheets.Take(sheetsToMerge).ToList();
+                if (worksheets.Count == 0)
+                {
+                    errors.Add($"{fileName}: çalışma sayfası yok.");
+                    continue;
+                }
+
+                foreach (var ws in worksheets)
+                {
+                    var source = $"{fileName} / {ws.Name}";
+                    if (TryGetWorksheetHeaderNames(ws, out var headers, out var sheetError))
+                        sources.Add((source, headers!));
+                    else
+                        errors.Add($"{source}: {sheetError}");
+                }
+            }
+        }
+
+        return sources;
+    }
+
+    private static bool ProcessExcelWorksheet(
+        IXLWorksheet ws,
+        string sourceName,
+        MergeOptions options,
+        List<string> columnOrder,
+        List<IReadOnlyDictionary<string, XLCellValue>> allRows,
+        List<RowIssue> fixedRows,
+        List<RowIssue> skippedRows,
+        HashSet<string> seenPhoneNumbers,
+        ref int duplicatesSkipped,
+        ref bool reachedRowLimit,
+        List<string> fileErrors)
+    {
+        var range = ws.RangeUsed();
+        if (range is null)
+        {
+            fileErrors.Add($"{sourceName}: kullanılan hücre yok, atlandı.");
+            return false;
+        }
+
+        var headerRangeRow = range.FirstRow();
+        var headers = BuildUniqueHeaders(headerRangeRow, range.LastColumnUsed().ColumnNumber());
+
+        foreach (var col in headers.Keys.OrderBy(c => c))
+        {
+            var h = headers[col];
+            if (!columnOrder.Contains(h, StringComparer.OrdinalIgnoreCase))
+                columnOrder.Add(h);
+        }
+
+        var firstDataRow = headerRangeRow.RowNumber() + 1;
+        var lastRow = range.LastRowUsed().RowNumber();
+
+        for (var r = firstDataRow; r <= lastRow; r++)
+        {
+            if (allRows.Count >= MaxDataRows)
+            {
+                reachedRowLimit = true;
+                fileErrors.Add($"Satır limiti aşıldı ({MaxDataRows:N0}). Kalan satırlar atlandı.");
+                break;
+            }
+
+            var row = ws.Row(r);
+            if (IsRowEmpty(row, headers.Keys))
+                continue;
+
+            var readResult = TryReadExcelRow(sourceName, r, headers, row, options);
+            switch (readResult.Outcome)
+            {
+                case RowReadOutcome.Success:
+                    if (ShouldSkipDuplicateByPhoneNr(readResult.Row!, seenPhoneNumbers))
+                    {
+                        duplicatesSkipped++;
+                        continue;
+                    }
+
+                    allRows.Add(readResult.Row!);
+                    break;
+
+                case RowReadOutcome.Fixed:
+                    if (readResult.Issue is not null)
+                        fixedRows.Add(readResult.Issue);
+
+                    if (ShouldSkipDuplicateByPhoneNr(readResult.Row!, seenPhoneNumbers))
+                    {
+                        duplicatesSkipped++;
+                        continue;
+                    }
+
+                    allRows.Add(readResult.Row!);
+                    break;
+
+                case RowReadOutcome.Skipped:
+                    if (readResult.Issue is not null)
+                        skippedRows.Add(readResult.Issue);
+                    break;
+
+                case RowReadOutcome.Failed:
+                    throw new MergeRowException(readResult.Issue!);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryGetWorksheetHeaderNames(IXLWorksheet ws, out IReadOnlyList<string>? headers, out string? error)
+    {
+        var range = ws.RangeUsed();
+        if (range is null)
+        {
+            headers = null;
+            error = "kullanılan hücre yok.";
+            return false;
+        }
+
+        var headerRow = range.FirstRow();
+        var built = BuildUniqueHeaders(headerRow, range.LastColumnUsed().ColumnNumber());
+        headers = GetOrderedHeaderNames(built);
+        error = null;
+        return true;
+    }
+
+    private static bool TryGetCsvHeaderNames(string path, out IReadOnlyList<string>? headers, out string? error)
+    {
+        headers = null;
+        error = null;
+
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(path);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
+        if (lines.Length == 0)
+        {
+            error = "CSV dosyası boş.";
+            return false;
+        }
+
+        var delimiter = DetectCsvDelimiter(lines[0]);
+        var headerCells = ParseCsvLine(lines[0], delimiter);
+        if (headerCells.Count == 0)
+        {
+            error = "başlık satırı okunamadı.";
+            return false;
+        }
+
+        headers = GetOrderedHeaderNames(BuildUniqueHeaders(headerCells));
+        return true;
+    }
+
+    private static IReadOnlyList<string> GetOrderedHeaderNames(IReadOnlyDictionary<int, string> headers) =>
+        headers.Keys.OrderBy(c => c).Select(c => headers[c]).ToList();
+
+    private static bool HeadersEqual(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+
+        var rightNames = new HashSet<string>(right, StringComparer.OrdinalIgnoreCase);
+        foreach (var name in left)
+        {
+            if (!rightNames.Contains(name))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static string FormatHeaders(IReadOnlyList<string> headers) =>
+        string.Join(", ", headers);
 
     private static Dictionary<int, string> BuildUniqueHeaders(IXLRangeRow headerRow, int lastCol)
     {

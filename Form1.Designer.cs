@@ -10,6 +10,8 @@ partial class Form1
     private Button btnMerge = null!;
     private Label lblStatus = null!;
     private CheckBox chkSkipInvalidRows = null!;
+    private Label lblSheetCount = null!;
+    private NumericUpDown numSheetCount = null!;
     private FolderBrowserDialog folderDialog = null!;
 
     protected override void Dispose(bool disposing)
@@ -27,7 +29,10 @@ partial class Form1
         btnMerge = new Button();
         lblStatus = new Label();
         chkSkipInvalidRows = new CheckBox();
+        lblSheetCount = new Label();
+        numSheetCount = new NumericUpDown();
         folderDialog = new FolderBrowserDialog();
+        ((System.ComponentModel.ISupportInitialize)numSheetCount).BeginInit();
         SuspendLayout();
 
         txtFolder.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -46,9 +51,9 @@ partial class Form1
         btnBrowse.Click += BtnBrowse_Click;
 
         btnMerge.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnMerge.Location = new Point(578, 78);
+        btnMerge.Location = new Point(578, 108);
         btnMerge.Size = new Size(94, 34);
-        btnMerge.TabIndex = 3;
+        btnMerge.TabIndex = 4;
         btnMerge.Text = "Birleştir";
         btnMerge.UseVisualStyleBackColor = true;
         btnMerge.Click += BtnMerge_Click;
@@ -61,22 +66,36 @@ partial class Form1
         chkSkipInvalidRows.Text = "Hatalı satırları atla ve devam et";
         chkSkipInvalidRows.UseVisualStyleBackColor = true;
 
+        lblSheetCount.AutoSize = true;
+        lblSheetCount.Location = new Point(12, 78);
+        lblSheetCount.Text = "Birleştirilecek sayfa sayısı (ilk N):";
+
+        numSheetCount.Location = new Point(280, 74);
+        numSheetCount.Minimum = 1;
+        numSheetCount.Maximum = 100;
+        numSheetCount.Size = new Size(72, 27);
+        numSheetCount.TabIndex = 3;
+        numSheetCount.Value = 1;
+
         lblStatus.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        lblStatus.Location = new Point(12, 82);
+        lblStatus.Location = new Point(12, 112);
         lblStatus.Size = new Size(560, 60);
-        lblStatus.TabIndex = 4;
+        lblStatus.TabIndex = 5;
         lblStatus.Text = "Hazır.";
 
         AutoScaleDimensions = new SizeF(8F, 20F);
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(684, 151);
+        ClientSize = new Size(684, 181);
+        Controls.Add(numSheetCount);
+        Controls.Add(lblSheetCount);
         Controls.Add(chkSkipInvalidRows);
         Controls.Add(lblStatus);
         Controls.Add(btnMerge);
         Controls.Add(btnBrowse);
         Controls.Add(txtFolder);
-        MinimumSize = new Size(500, 190);
+        MinimumSize = new Size(500, 220);
         Text = "THB Excel Birleştirici";
+        ((System.ComponentModel.ISupportInitialize)numSheetCount).EndInit();
         ResumeLayout(false);
         PerformLayout();
     }

@@ -238,3 +238,4 @@ C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\ExcelBirlestirici.Tests\obj\Re
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\ExcelBirlestirici.Tests\obj\Release\net8.0-windows\ExcelBirlestirici.Tests.pdb
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\ExcelBirlestirici.Tests\obj\Release\net8.0-windows\ExcelBirlestirici.Tests.genruntimeconfig.cache
 C:\Users\erdem\Desktop\Projects\ExcelBirlestirici\ExcelBirlestirici.Tests\obj\Release\net8.0-windows\ref\ExcelBirlestirici.Tests.dll
+c:\Users\erdem\Desktop\Projects\ExcelBirlestirici\ExcelBirlestirici.Tests\obj\Release\net8.0-windows\ExcelBirlestirici.Tests.sourcelink.json

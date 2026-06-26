@@ -6406,17 +6406,17 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget": {},
+    "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\c17465d0cb3e92977abdd0481f3971b0\\nuget": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\ExcelBirlestirici.Tests.csproj",
+      "projectUniqueName": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\ExcelBirlestirici.Tests.csproj",
       "projectName": "ExcelBirlestirici.Tests",
-      "projectPath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\ExcelBirlestirici.Tests.csproj",
-      "packagesPath": "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\545231c73971747712d6e7ae9d529626\\nuget",
-      "outputPath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\obj\\",
+      "projectPath": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\ExcelBirlestirici.Tests.csproj",
+      "packagesPath": "C:\\Users\\erdem\\AppData\\Local\\Temp\\cursor-sandbox-cache\\c17465d0cb3e92977abdd0481f3971b0\\nuget",
+      "outputPath": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -6437,8 +6437,8 @@
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows",
           "projectReferences": {
-            "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj": {
-              "projectPath": "C:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj"
+            "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj": {
+              "projectPath": "c:\\Users\\erdem\\Desktop\\Projects\\ExcelBirlestirici\\ExcelBirlestirici.csproj"
             }
           }
         }
