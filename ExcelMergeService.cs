@@ -11,6 +11,11 @@ public sealed class MergeOptions
     public int SheetsToMerge { get; init; } = 1;
 
     /// <summary>
+    /// Açıkken sayfalar indeks bazında ayrı birleştirilir; CSV dosyaları atlanır.
+    /// </summary>
+    public bool WorkbookProtectedMode { get; init; } = true;
+
+    /// <summary>
     /// Şifre korumalı Excel dosyası için şifre ister.
     /// Parametreler: dosya adı, önceki şifre yanlış mı. null dönerse dosya atlanır.
     /// </summary>
@@ -67,6 +72,13 @@ public sealed class MergeResult
     public IReadOnlyList<RowIssue> SkippedRows { get; init; } = Array.Empty<RowIssue>();
     public bool AbortedDueToInvalidRow { get; init; }
     public bool AbortedDueToHeaderMismatch { get; init; }
+}
+
+internal sealed class SheetMergeSlot
+{
+    public List<string> ColumnOrder { get; } = [];
+    public List<IReadOnlyDictionary<string, XLCellValue>> Rows { get; } = [];
+    public HashSet<string> SeenPhoneNumbers { get; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public static class ExcelMergeService
@@ -141,6 +153,9 @@ public static class ExcelMergeService
                 AbortedDueToHeaderMismatch = true
             };
         }
+
+        if (options.WorkbookProtectedMode)
+            return MergeInWorkbookProtectedMode(dir, files, discoveredFileNames, options, passwordSession);
 
         var columnOrder = new List<string>();
         var fileErrors = new List<string>();
@@ -345,6 +360,239 @@ public static class ExcelMergeService
             OutputPath = outputPath,
             FilesProcessed = files.Count,
             RowsWritten = allRows.Count,
+            DuplicatesSkipped = duplicatesSkipped,
+            DiscoveredFiles = discoveredFileNames,
+            MergedFiles = mergedFiles,
+            FixedRows = fixedRows,
+            SkippedRows = skippedRows,
+            FileErrors = fileErrors,
+            AbortedDueToInvalidRow = abortedDueToInvalidRow
+        };
+    }
+
+    private static MergeResult MergeInWorkbookProtectedMode(
+        DirectoryInfo dir,
+        IReadOnlyList<string> files,
+        IReadOnlyList<string> discoveredFileNames,
+        MergeOptions options,
+        ExcelPasswordSession passwordSession)
+    {
+        var sheetsToMerge = Math.Max(1, options.SheetsToMerge);
+        var slots = Enumerable.Range(0, sheetsToMerge).Select(_ => new SheetMergeSlot()).ToList();
+        var fileErrors = new List<string>();
+        var mergedFiles = new List<string>();
+        var fixedRows = new List<RowIssue>();
+        var skippedRows = new List<RowIssue>();
+        var duplicatesSkipped = 0;
+        var reachedRowLimit = false;
+        var abortedDueToInvalidRow = false;
+        var totalRowsWritten = 0;
+
+        try
+        {
+            foreach (var path in files)
+            {
+                var fileName = Path.GetFileName(path) ?? path;
+                var ext = Path.GetExtension(path);
+
+                if (ext.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileErrors.Add($"{fileName}: korumalı modda CSV atlandı.");
+                    continue;
+                }
+
+                XLWorkbook wb;
+                try
+                {
+                    wb = passwordSession.Open(path, fileName);
+                }
+                catch (ExcelPasswordCancelledException ex)
+                {
+                    fileErrors.Add(ex.Message);
+                    continue;
+                }
+
+                using (wb)
+                {
+                    var worksheets = wb.Worksheets.Take(sheetsToMerge).ToList();
+                    if (worksheets.Count == 0)
+                    {
+                        fileErrors.Add($"{fileName}: çalışma sayfası yok.");
+                        continue;
+                    }
+
+                    for (var sheetIndex = 0; sheetIndex < worksheets.Count; sheetIndex++)
+                    {
+                        var ws = worksheets[sheetIndex];
+                        var sourceName = $"{fileName} / {ws.Name}";
+                        var slot = slots[sheetIndex];
+                        var processed = ProcessExcelWorksheet(
+                            ws,
+                            sourceName,
+                            options,
+                            slot.ColumnOrder,
+                            slot.Rows,
+                            fixedRows,
+                            skippedRows,
+                            slot.SeenPhoneNumbers,
+                            ref duplicatesSkipped,
+                            ref reachedRowLimit,
+                            fileErrors);
+
+                        if (processed)
+                            mergedFiles.Add(sourceName);
+
+                        if (reachedRowLimit)
+                            break;
+                    }
+                }
+
+                if (reachedRowLimit)
+                    break;
+            }
+        }
+        catch (MergeRowException ex)
+        {
+            abortedDueToInvalidRow = true;
+            fileErrors.Add(ex.Message);
+            return new MergeResult
+            {
+                FilesProcessed = files.Count,
+                DuplicatesSkipped = duplicatesSkipped,
+                DiscoveredFiles = discoveredFileNames,
+                MergedFiles = mergedFiles,
+                FixedRows = fixedRows,
+                SkippedRows = skippedRows,
+                FileErrors = fileErrors,
+                AbortedDueToInvalidRow = true
+            };
+        }
+        catch (Exception ex) when (!options.SkipInvalidRows)
+        {
+            fileErrors.Add(ex.Message);
+            return new MergeResult
+            {
+                FilesProcessed = files.Count,
+                DuplicatesSkipped = duplicatesSkipped,
+                DiscoveredFiles = discoveredFileNames,
+                MergedFiles = mergedFiles,
+                FixedRows = fixedRows,
+                SkippedRows = skippedRows,
+                FileErrors = fileErrors,
+                AbortedDueToInvalidRow = true
+            };
+        }
+
+        var hasData = slots.Any(s => s.ColumnOrder.Count > 0);
+        if (!hasData)
+        {
+            return new MergeResult
+            {
+                DiscoveredFiles = discoveredFileNames,
+                MergedFiles = mergedFiles,
+                FixedRows = fixedRows,
+                SkippedRows = skippedRows,
+                FileErrors = fileErrors.Count > 0
+                    ? fileErrors
+                    : ["Hiçbir dosyadan kolon başlığı okunamadı."]
+            };
+        }
+
+        var outputName = $"{OutputPrefix}{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+        var outputPath = Path.Combine(dir.FullName, outputName);
+
+        try
+        {
+            using var outWb = new XLWorkbook();
+
+            for (var sheetIndex = 0; sheetIndex < slots.Count; sheetIndex++)
+            {
+                var slot = slots[sheetIndex];
+                if (slot.ColumnOrder.Count == 0)
+                    continue;
+
+                var outWs = outWb.Worksheets.Add($"Birleştirilmiş {sheetIndex + 1}");
+                var colCount = slot.ColumnOrder.Count;
+
+                for (var c = 0; c < colCount; c++)
+                    outWs.Cell(1, c + 1).Value = slot.ColumnOrder[c];
+
+                var outRow = 2;
+                foreach (var src in slot.Rows)
+                {
+                    if (outRow > MaxExcelRows)
+                    {
+                        fileErrors.Add($"Excel maksimum satır sayısı aşıldı ({MaxExcelRows:N0}).");
+                        break;
+                    }
+
+                    var writeResult = TryWriteOutputRow(outWs, outRow, slot.ColumnOrder, src, options, outRow - 1);
+                    switch (writeResult.Outcome)
+                    {
+                        case RowReadOutcome.Success:
+                            outRow++;
+                            totalRowsWritten++;
+                            break;
+
+                        case RowReadOutcome.Fixed:
+                            if (writeResult.Issue is not null)
+                                fixedRows.Add(writeResult.Issue);
+                            outRow++;
+                            totalRowsWritten++;
+                            break;
+
+                        case RowReadOutcome.Skipped:
+                            if (writeResult.Issue is not null)
+                                skippedRows.Add(writeResult.Issue);
+                            break;
+
+                        case RowReadOutcome.Failed:
+                            throw new MergeRowException(writeResult.Issue!);
+                    }
+                }
+
+                outWs.SheetView.FreezeRows(1);
+                outWs.Row(1).Style.Font.Bold = true;
+                SafeAdjustColumnWidths(outWs, colCount, outRow - 1);
+            }
+
+            if (outWb.Worksheets.Count == 0)
+            {
+                return new MergeResult
+                {
+                    DiscoveredFiles = discoveredFileNames,
+                    MergedFiles = mergedFiles,
+                    FixedRows = fixedRows,
+                    SkippedRows = skippedRows,
+                    FileErrors = ["Hiçbir sayfaya veri yazılamadı."]
+                };
+            }
+
+            outWb.SaveAs(outputPath);
+        }
+        catch (MergeRowException ex)
+        {
+            abortedDueToInvalidRow = true;
+            fileErrors.Add(ex.Message);
+            return new MergeResult
+            {
+                FilesProcessed = files.Count,
+                RowsWritten = totalRowsWritten,
+                DuplicatesSkipped = duplicatesSkipped,
+                DiscoveredFiles = discoveredFileNames,
+                MergedFiles = mergedFiles,
+                FixedRows = fixedRows,
+                SkippedRows = skippedRows,
+                FileErrors = fileErrors,
+                AbortedDueToInvalidRow = true
+            };
+        }
+
+        return new MergeResult
+        {
+            OutputPath = outputPath,
+            FilesProcessed = files.Count,
+            RowsWritten = totalRowsWritten,
             DuplicatesSkipped = duplicatesSkipped,
             DiscoveredFiles = discoveredFileNames,
             MergedFiles = mergedFiles,
@@ -742,6 +990,16 @@ public static class ExcelMergeService
         var errors = new List<string>();
         var sources = CollectSheetHeaderSources(files, options, passwordSession, errors);
 
+        if (options.WorkbookProtectedMode && sources.Count == 0)
+        {
+            if (errors.Count == 0)
+                errors.Add("Korumalı modda işlenecek Excel dosyası bulunamadı.");
+            else if (!errors.Any(e => e.Contains("Korumalı modda işlenecek", StringComparison.Ordinal)))
+                errors.Insert(0, "Korumalı modda işlenecek Excel dosyası bulunamadı.");
+
+            return new SheetHeaderValidationResult { IsValid = false, Errors = errors };
+        }
+
         if (sources.Count == 0)
         {
             if (errors.Count == 0)
@@ -750,20 +1008,10 @@ public static class ExcelMergeService
             return new SheetHeaderValidationResult { IsValid = false, Errors = errors };
         }
 
-        var referenceSource = sources[0].Source;
-        var referenceHeaders = sources[0].Headers;
-
-        for (var i = 1; i < sources.Count; i++)
-        {
-            var (source, headers) = sources[i];
-            if (HeadersEqual(referenceHeaders, headers))
-                continue;
-
-            errors.Add(
-                $"{source}: Sütunlar '{referenceSource}' ile uyuşmuyor.{Environment.NewLine}" +
-                $"  Beklenen: {FormatHeaders(referenceHeaders)}{Environment.NewLine}" +
-                $"  Bulunan: {FormatHeaders(headers)}");
-        }
+        if (options.WorkbookProtectedMode)
+            ValidateHeadersBySheetIndex(sources, errors);
+        else
+            ValidateHeadersGlobally(sources, errors);
 
         return new SheetHeaderValidationResult
         {
@@ -772,13 +1020,61 @@ public static class ExcelMergeService
         };
     }
 
-    private static List<(string Source, IReadOnlyList<string> Headers)> CollectSheetHeaderSources(
+    private static void ValidateHeadersGlobally(
+        IReadOnlyList<(string Source, IReadOnlyList<string> Headers, int SheetIndex)> sources,
+        List<string> errors)
+    {
+        var referenceSource = sources[0].Source;
+        var referenceHeaders = sources[0].Headers;
+
+        for (var i = 1; i < sources.Count; i++)
+        {
+            var (source, headers, _) = sources[i];
+            if (HeadersEqual(referenceHeaders, headers))
+                continue;
+
+            errors.Add(
+                $"{source}: Sütunlar '{referenceSource}' ile uyuşmuyor.{Environment.NewLine}" +
+                $"  Beklenen: {FormatHeaders(referenceHeaders)}{Environment.NewLine}" +
+                $"  Bulunan: {FormatHeaders(headers)}");
+        }
+    }
+
+    private static void ValidateHeadersBySheetIndex(
+        IReadOnlyList<(string Source, IReadOnlyList<string> Headers, int SheetIndex)> sources,
+        List<string> errors)
+    {
+        foreach (var group in sources.GroupBy(s => s.SheetIndex).OrderBy(g => g.Key))
+        {
+            var groupSources = group.ToList();
+            if (groupSources.Count <= 1)
+                continue;
+
+            var referenceSource = groupSources[0].Source;
+            var referenceHeaders = groupSources[0].Headers;
+            var sheetNumber = group.Key + 1;
+
+            for (var i = 1; i < groupSources.Count; i++)
+            {
+                var (source, headers, _) = groupSources[i];
+                if (HeadersEqual(referenceHeaders, headers))
+                    continue;
+
+                errors.Add(
+                    $"Sayfa {sheetNumber} — {source}: Sütunlar '{referenceSource}' ile uyuşmuyor.{Environment.NewLine}" +
+                    $"  Beklenen: {FormatHeaders(referenceHeaders)}{Environment.NewLine}" +
+                    $"  Bulunan: {FormatHeaders(headers)}");
+            }
+        }
+    }
+
+    private static List<(string Source, IReadOnlyList<string> Headers, int SheetIndex)> CollectSheetHeaderSources(
         IReadOnlyList<string> files,
         MergeOptions options,
         ExcelPasswordSession passwordSession,
         List<string> errors)
     {
-        var sources = new List<(string Source, IReadOnlyList<string> Headers)>();
+        var sources = new List<(string Source, IReadOnlyList<string> Headers, int SheetIndex)>();
         var sheetsToMerge = Math.Max(1, options.SheetsToMerge);
 
         foreach (var path in files)
@@ -788,8 +1084,11 @@ public static class ExcelMergeService
 
             if (ext.Equals(".csv", StringComparison.OrdinalIgnoreCase))
             {
+                if (options.WorkbookProtectedMode)
+                    continue;
+
                 if (TryGetCsvHeaderNames(path, out var csvHeaders, out var csvError))
-                    sources.Add((fileName, csvHeaders!));
+                    sources.Add((fileName, csvHeaders!, SheetIndex: 0));
                 else
                     errors.Add($"{fileName}: {csvError}");
                 continue;
@@ -815,11 +1114,12 @@ public static class ExcelMergeService
                     continue;
                 }
 
-                foreach (var ws in worksheets)
+                for (var sheetIndex = 0; sheetIndex < worksheets.Count; sheetIndex++)
                 {
+                    var ws = worksheets[sheetIndex];
                     var source = $"{fileName} / {ws.Name}";
                     if (TryGetWorksheetHeaderNames(ws, out var headers, out var sheetError))
-                        sources.Add((source, headers!));
+                        sources.Add((source, headers!, sheetIndex));
                     else
                         errors.Add($"{source}: {sheetError}");
                 }

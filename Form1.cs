@@ -34,6 +34,7 @@ public partial class Form1 : Form
         btnMerge.Enabled = false;
         btnBrowse.Enabled = false;
         chkSkipInvalidRows.Enabled = false;
+        chkWorkbookProtectedMode.Enabled = false;
         numSheetCount.Enabled = false;
 
         try
@@ -42,6 +43,7 @@ public partial class Form1 : Form
             {
                 SkipInvalidRows = chkSkipInvalidRows.Checked,
                 SheetsToMerge = (int)numSheetCount.Value,
+                WorkbookProtectedMode = chkWorkbookProtectedMode.Checked,
                 RequestPassword = PromptForExcelPassword
             };
 
@@ -166,6 +168,7 @@ public partial class Form1 : Form
             btnMerge.Enabled = true;
             btnBrowse.Enabled = true;
             chkSkipInvalidRows.Enabled = true;
+            chkWorkbookProtectedMode.Enabled = true;
             numSheetCount.Enabled = true;
         }
     }

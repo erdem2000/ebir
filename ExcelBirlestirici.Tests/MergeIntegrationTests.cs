@@ -4,6 +4,14 @@ namespace ExcelBirlestirici.Tests;
 
 public class MergeIntegrationTests
 {
+    private static MergeOptions ClassicOptions(int sheetsToMerge = 1, bool skipInvalidRows = false) =>
+        new()
+        {
+            WorkbookProtectedMode = false,
+            SheetsToMerge = sheetsToMerge,
+            SkipInvalidRows = skipInvalidRows
+        };
+
     [Fact]
     public void Merge_AlignsColumnsByName_AndWritesDatedOutput()
     {
@@ -15,7 +23,7 @@ public class MergeIntegrationTests
             WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş", "Şehir"], [("Ali", 30, ""), ("Ayşe", 25, "")]);
             WriteWorkbook(Path.Combine(root, "b.xlsx"), ["Yaş", "Şehir", "Ad"], [(40, "Ankara", "Mehmet"), (22, "İzmir", "Can")]);
 
-            var result = ExcelMergeService.Merge(root);
+            var result = ExcelMergeService.Merge(root, ClassicOptions());
 
             Assert.NotNull(result.OutputPath);
             Assert.True(File.Exists(result.OutputPath));
@@ -58,7 +66,7 @@ public class MergeIntegrationTests
             WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş", "Şehir"], [("Ali", 30, "")]);
             WriteCsv(Path.Combine(root, "c.csv"), "Şehir,Yaş,Ad\nAnkara,40,Zeynep\nİzmir,22,Deniz\n");
 
-            var result = ExcelMergeService.Merge(root);
+            var result = ExcelMergeService.Merge(root, ClassicOptions());
 
             Assert.NotNull(result.OutputPath);
             Assert.Contains("c.csv", result.DiscoveredFiles);
@@ -101,7 +109,7 @@ public class MergeIntegrationTests
 
             WriteCsv(Path.Combine(root, "b.csv"), "PhoneNr,Ad\n5551112233,Ayşe\n5552223344,Fatma\n");
 
-            var result = ExcelMergeService.Merge(root);
+            var result = ExcelMergeService.Merge(root, ClassicOptions());
             Assert.NotNull(result.OutputPath);
             Assert.Equal(2, result.RowsWritten);
             Assert.Equal(2, result.DuplicatesSkipped);
@@ -134,7 +142,7 @@ public class MergeIntegrationTests
         {
             WriteCsv(Path.Combine(root, "semi.csv"), "Ad;Şehir;PhoneNr\nAli;Ankara;5551112233\nVeli;İzmir;5552223344\n");
 
-            var result = ExcelMergeService.Merge(root);
+            var result = ExcelMergeService.Merge(root, ClassicOptions());
             Assert.NotNull(result.OutputPath);
             Assert.Equal(2, result.RowsWritten);
 
@@ -173,7 +181,7 @@ public class MergeIntegrationTests
                 ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
                 ("Sayfa2", ["Ad", "Yaş"], [("Veli", 40)]));
 
-            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2 });
+            var result = ExcelMergeService.Merge(root, ClassicOptions(sheetsToMerge: 2));
 
             Assert.NotNull(result.OutputPath);
             Assert.Equal(2, result.RowsWritten);
@@ -206,13 +214,161 @@ public class MergeIntegrationTests
                 ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
                 ("Sayfa2", ["Ad", "Şehir"], [("Veli", "Ankara")]));
 
-            var validation = ExcelMergeService.ValidateSheetHeaders(root, new MergeOptions { SheetsToMerge = 2 });
+            var validation = ExcelMergeService.ValidateSheetHeaders(root, ClassicOptions(sheetsToMerge: 2));
             Assert.False(validation.IsValid);
             Assert.NotEmpty(validation.Errors);
 
-            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2 });
+            var result = ExcelMergeService.Merge(root, ClassicOptions(sheetsToMerge: 2));
             Assert.Null(result.OutputPath);
             Assert.True(result.AbortedDueToHeaderMismatch);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    [Fact]
+    public void Merge_WorkbookProtectedMode_MergesBySheetIndex()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciProtectedByIndex_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "a.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
+                ("Sayfa2", ["Ad", "Yaş"], [("Veli", 40)]));
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "b.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ayşe", 25)]),
+                ("Sayfa2", ["Ad", "Yaş"], [("Can", 35)]));
+
+            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2, WorkbookProtectedMode = true });
+
+            Assert.NotNull(result.OutputPath);
+            Assert.Equal(4, result.RowsWritten);
+
+            using var wb = new XLWorkbook(result.OutputPath!);
+            Assert.Equal(2, wb.Worksheets.Count);
+            Assert.Equal("Birleştirilmiş 1", wb.Worksheet(1).Name);
+            Assert.Equal("Birleştirilmiş 2", wb.Worksheet(2).Name);
+            Assert.Equal("Ali", wb.Worksheet(1).Cell(2, 1).GetString());
+            Assert.Equal("Ayşe", wb.Worksheet(1).Cell(3, 1).GetString());
+            Assert.Equal("Veli", wb.Worksheet(2).Cell(2, 1).GetString());
+            Assert.Equal("Can", wb.Worksheet(2).Cell(3, 1).GetString());
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    [Fact]
+    public void Merge_WorkbookProtectedMode_ValidatesHeadersPerSheetIndex()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciProtectedHeader_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "a.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ali", 30)]),
+                ("Sayfa2", ["Ad", "Yaş"], [("Veli", 40)]));
+            WriteWorkbookWithSheets(
+                Path.Combine(root, "b.xlsx"),
+                ("Sayfa1", ["Ad", "Yaş"], [("Ayşe", 25)]),
+                ("Sayfa2", ["Ad", "Şehir"], [("Can", "Ankara")]));
+
+            var validation = ExcelMergeService.ValidateSheetHeaders(root, new MergeOptions { SheetsToMerge = 2, WorkbookProtectedMode = true });
+            Assert.False(validation.IsValid);
+            Assert.Contains(validation.Errors, e => e.Contains("Sayfa 2", StringComparison.Ordinal));
+
+            var result = ExcelMergeService.Merge(root, new MergeOptions { SheetsToMerge = 2, WorkbookProtectedMode = true });
+            Assert.Null(result.OutputPath);
+            Assert.True(result.AbortedDueToHeaderMismatch);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    [Fact]
+    public void Merge_WorkbookProtectedMode_SkipsCsvFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciProtectedCsv_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş"], [("Ali", 30)]);
+            WriteCsv(Path.Combine(root, "data.csv"), "Ad,Yaş\nVeli,40\n");
+
+            var result = ExcelMergeService.Merge(root, new MergeOptions { WorkbookProtectedMode = true });
+
+            Assert.NotNull(result.OutputPath);
+            Assert.DoesNotContain(result.MergedFiles, f => f.Contains("data.csv", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(result.FileErrors, e => e.Contains("korumalı modda CSV atlandı", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, result.RowsWritten);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // ignore cleanup failures on locked temp files
+            }
+        }
+    }
+
+    [Fact]
+    public void Merge_WorkbookProtectedMode_DefaultIsTrue()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ExcelBirlestiriciProtectedDefault_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            WriteWorkbook(Path.Combine(root, "a.xlsx"), ["Ad", "Yaş"], [("Ali", 30)]);
+            WriteWorkbook(Path.Combine(root, "b.xlsx"), ["Ad", "Yaş"], [("Ayşe", 25)]);
+
+            var result = ExcelMergeService.Merge(root);
+
+            Assert.NotNull(result.OutputPath);
+            Assert.Equal(2, result.RowsWritten);
+
+            using var wb = new XLWorkbook(result.OutputPath!);
+            Assert.Single(wb.Worksheets);
+            Assert.Equal("Birleştirilmiş 1", wb.Worksheet(1).Name);
+            Assert.Equal("Ali", wb.Worksheet(1).Cell(2, 1).GetString());
+            Assert.Equal("Ayşe", wb.Worksheet(1).Cell(3, 1).GetString());
         }
         finally
         {
@@ -316,7 +472,7 @@ public class MergeIntegrationTests
         {
             WriteInvalidDateWorkbook(Path.Combine(root, "bad-date.xlsx"));
 
-            var result = ExcelMergeService.Merge(root, new MergeOptions { SkipInvalidRows = true });
+            var result = ExcelMergeService.Merge(root, ClassicOptions(skipInvalidRows: true));
 
             Assert.NotNull(result.OutputPath);
             Assert.Equal(2, result.RowsWritten);
@@ -346,7 +502,7 @@ public class MergeIntegrationTests
         {
             WriteInvalidDateWorkbook(Path.Combine(root, "bad-date.xlsx"));
 
-            var result = ExcelMergeService.Merge(root, new MergeOptions { SkipInvalidRows = false });
+            var result = ExcelMergeService.Merge(root, ClassicOptions());
 
             Assert.NotNull(result.OutputPath);
             Assert.Equal(3, result.RowsWritten);

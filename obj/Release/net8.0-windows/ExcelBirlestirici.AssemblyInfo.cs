@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ExcelBirlestirici")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bf8fcdb0acfbfe170b1cd1dd5f0ff7a112eca43e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4b2258b1b46559d2227e5903685d6e1868566f47")]
 [assembly: System.Reflection.AssemblyProductAttribute("THB Excel Birleştirici")]
 [assembly: System.Reflection.AssemblyTitleAttribute("THB Excel Birleştirici")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
